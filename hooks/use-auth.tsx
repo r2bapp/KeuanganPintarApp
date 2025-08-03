@@ -1,128 +1,46 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
-import type { User } from "@supabase/supabase-js"
-import type { Database } from "@/lib/supabase"
-
-type UserProfile = Database["public"]["Tables"]["user_profiles"]["Row"]
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/lib/database'
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const supabase = createClientComponentClient<Database>()
+  const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    // Get initial session
-    const getSession = async () => {
-      try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
-
-        if (error) {
-          console.error("Session error:", error)
-          setUser(null)
-          setProfile(null)
-          setLoading(false)
-          return
-        }
-
-        setUser(session?.user ?? null)
-
-        if (session?.user) {
-          await fetchProfile(session.user.id)
-        }
-      } catch (error) {
-        console.error("Auth error:", error)
-        setUser(null)
-        setProfile(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    getSession()
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.email)
-      setUser(session?.user ?? null)
-
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      } else {
-        setProfile(null)
-      }
-      setLoading(false)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase.from("user_profiles").select("*").eq("id", userId).maybeSingle()
+    const getUser = async () => {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser()
 
       if (error) {
-        console.error("Profile fetch error:", error)
+        console.error('Auth error:', error.message)
+        setUser(null)
+        setLoading(false)
         return
       }
 
-      if (!data) {
-        // Profile doesn't exist, create a basic one
-        console.log("No profile found, creating basic profile...")
-        const { data: newProfile, error: createError } = await supabase
-          .from("user_profiles")
-          .insert({
-            id: userId,
-            email: "",
-            full_name: "",
-            user_type: "personal",
-          })
-          .select()
-          .single()
+      setUser(user)
+      setLoading(false)
 
-        if (createError) {
-          console.error("Error creating profile:", createError)
-          return
-        }
-
-        setProfile(newProfile)
-        return
+      if (user) {
+        // Auto insert or update user_profiles
+        await supabase.from('user_profiles').upsert({
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name ?? '',
+          user_type: 'personal',
+        })
       }
-
-      setProfile(data)
-    } catch (error) {
-      console.error("Profile fetch error:", error)
     }
-  }
 
-  const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) return false
+    getUser()
+  }, [])
 
-    try {
-      const { error } = await supabase.from("user_profiles").update(updates).eq("id", user.id)
-
-      if (error) throw error
-
-      // Refresh profile
-      await fetchProfile(user.id)
-      return true
-    } catch (error) {
-      console.error("Profile update error:", error)
-      return false
-    }
-  }
-
-  return {
-    user,
-    profile,
-    loading,
-    refetch: () => user && fetchProfile(user.id),
-    updateProfile,
-  }
+  return { user, loading }
 }
