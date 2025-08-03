@@ -28,4 +28,20 @@
 ---
 
 ## 🧩 Struktur Folder Utama
+app/
+├── page.tsx // Halaman dashboard utama
+├── dashboard/
+│ ├── reports/ // Laporan keuangan
+│ ├── transactions/ // Tambah & kelola transaksi
+│ └── import/ // Fitur import data
+components/
+├── ui/ // Komponen UI dari ShadCN
+├── profile-completion.tsx // Komponen form profil
+├── footer.tsx // Footer aplikasi
+lib/
+└── supabase.ts // Koneksi Supabase
+hooks/
+└── use-auth.ts // Hook autentikasi Supabase
+public/
+└── logo.png // Logo aplikasi
 
